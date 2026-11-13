@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "author": "Smart Sleep Assistant",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "board-esp32-s3-devkitc-1",
+      "id": "esp",
+      "top": 0,
+      "left": 0,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn_stop",
+      "top": 35,
+      "left": -130,
+      "attrs": { "color": "red", "label": "Manual Stop (GPIO 4)" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led_wake",
+      "top": 110,
+      "left": -115,
+      "attrs": { "color": "orange", "label": "Wake-up Light (GPIO 5)" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r1",
+      "top": 165,
+      "left": -115,
+      "attrs": { "value": "220" }
+    },
+    {
+      "type": "wokwi-relay-module",
+      "id": "relay_ac",
+      "top": 50,
+      "left": 140,
+      "attrs": {}
+    }
+  ],
+  "connections": [
+    [ "esp:TX", "$serialMonitor:RX", "", [] ],
+    [ "esp:RX", "$serialMonitor:TX", "", [] ],
+    [ "btn_stop:1.r", "esp:4", "green", [ "h0" ] ],
+    [ "btn_stop:2.r", "esp:GND.1", "black", [ "h0" ] ],
+    [ "led_wake:A", "r1:1", "orange", [ "v0" ] ],
+    [ "r1:2", "esp:5", "orange", [ "v0" ] ],
+    [ "led_wake:C", "esp:GND.1", "black", [ "v0" ] ],
+    [ "relay_ac:IN", "esp:6", "blue", [ "h0" ] ],
+    [ "relay_ac:VCC", "esp:5V", "red", [ "h0" ] ],
+    [ "relay_ac:GND", "esp:GND.2", "black", [ "h0" ] ]
+  ],
+  "dependencies": {}
+}
