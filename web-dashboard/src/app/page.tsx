@@ -7,6 +7,10 @@ import {
   Fan, Activity, Wifi, Play, Pause 
 } from "lucide-react";
 
+const MQTT_BROKER_URL = "wss://broker.hivemq.com:8884/mqtt";
+const TOPIC_TELEMETRY = "smartsleep/wachiraw1tch/telemetry";
+const TOPIC_COMMAND   = "smartsleep/wachiraw1tch/command";
+
 interface SleepTelemetry {
   hr: number;
   spo2: number;
@@ -41,21 +45,36 @@ export default function SmartSleepDashboard() {
     fan_relay: true,
   });
 
-  // 1. เชื่อมต่อ MQTT Broker (ผ่าน WebSockets)
+  // 1. เชื่อมต่อ HiveMQ Broker (ตรงกับ ESP32-S3 บน Wokwi)
   useEffect(() => {
-    const client = mqtt.connect("wss://broker.emqx.io:8084/mqtt");
+    const client = mqtt.connect(MQTT_BROKER_URL);
 
     client.on("connect", () => {
       setIsConnected(true);
-      client.subscribe("smart-sleep/wachiraw1tch/telemetry");
+      client.subscribe(TOPIC_TELEMETRY);
     });
 
     client.on("message", (topic, message) => {
-      if (topic === "smart-sleep/wachiraw1tch/telemetry") {
+      if (topic === TOPIC_TELEMETRY) {
         try {
           const parsed = JSON.parse(message.toString());
-          setIsDemoMode(false);
-          setData((prev) => ({ ...prev, ...parsed }));
+          setIsDemoMode(false); // ปิดโหมดสุ่มทันทีเมื่อได้รับข้อมูลจริงจากบอร์ด
+
+          setData((prev) => ({
+            ...prev,
+            hr: parsed.hr ?? prev.hr,
+            spo2: parsed.spo2 ?? prev.spo2,
+            accel: parsed.movement ?? parsed.accel ?? prev.accel,
+            on_bed: parsed.onBed ?? parsed.on_bed ?? prev.on_bed,
+            temp: parsed.temp ?? prev.temp,
+            hum: parsed.humidity ?? parsed.hum ?? prev.hum,
+            light: parsed.light ?? prev.light,
+            noise: parsed.noise ?? prev.noise,
+            sleep_stage: parsed.sleepStage ?? parsed.sleep_stage ?? prev.sleep_stage,
+            alarm_active: parsed.pwmOn ?? parsed.alarm_active ?? prev.alarm_active,
+            fan_relay: parsed.fanOn ?? parsed.fan_relay ?? prev.fan_relay,
+          }));
+
           if (parsed.hr) {
             setHistoryHR((prev) => [...prev.slice(-14), parsed.hr]);
           }
@@ -71,7 +90,7 @@ export default function SmartSleepDashboard() {
     };
   }, []);
 
-  // 2. โหมดจำลองข้อมูลอัตโนมัติ (ไว้พรีเซนต์งานตอนไม่ได้ต่อบอร์ดจริง)
+  // 2. โหมดจำลองข้อมูลอัตโนมัติ (ทำงานเฉพาะตอนเปิด Demo Mode)
   useEffect(() => {
     if (!isDemoMode) return;
     const interval = setInterval(() => {
@@ -104,13 +123,20 @@ export default function SmartSleepDashboard() {
 
   // 3. ฟังก์ชันส่งคำสั่งควบคุมกลับไปที่ ESP32-S3 Gateway
   const sendCommand = (cmd: string) => {
-    if (mqttClient && isConnected) {
-      mqttClient.publish("smart-sleep/wachiraw1tch/command", JSON.stringify({ action: cmd }));
-    }
     if (cmd === "STOP_ALARM") {
+      if (mqttClient && isConnected) {
+        mqttClient.publish(TOPIC_COMMAND, JSON.stringify({ action: "STOP_ALARM" }));
+      }
       setData((prev) => ({ ...prev, alarm_active: false }));
     } else if (cmd === "TOGGLE_FAN") {
-      setData((prev) => ({ ...prev, fan_relay: !prev.fan_relay }));
+      const nextFanState = !data.fan_relay;
+      if (mqttClient && isConnected) {
+        mqttClient.publish(
+          TOPIC_COMMAND,
+          JSON.stringify({ action: "TOGGLE_FAN", value: nextFanState })
+        );
+      }
+      setData((prev) => ({ ...prev, fan_relay: nextFanState }));
     }
   };
 
